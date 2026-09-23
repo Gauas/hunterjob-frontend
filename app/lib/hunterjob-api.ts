@@ -11,7 +11,10 @@ export type JobLocation = {
 
 export type Job = {
   id: string;
+  company_id: string;
+  source_job_id?: string;
   title: string;
+  normalized_title: string;
   description: string;
   locations: JobLocation[];
   levels: string[];
@@ -20,6 +23,16 @@ export type Job = {
   skills: string[];
   last_seen_at: string;
   original_url: string;
+  apply_url: string;
+};
+
+export type Company = {
+  id: string;
+  name: string;
+  slug: string;
+  website: string;
+  logo_url: string;
+  locations: string[] | null;
 };
 
 export type JobFilters = {
@@ -84,6 +97,11 @@ export async function latestJobs(limit = 5) {
 
 export async function getJob(id: string) {
   return get<Job>(`/api/v1/jobs/${encodeURIComponent(id)}`);
+}
+
+export async function listCompanies(page = 1, limit = 100) {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  return get<Company[]>(`/api/v1/companies?${params.toString()}`, 300);
 }
 
 export function applicationRedirectUrl(id: string) {

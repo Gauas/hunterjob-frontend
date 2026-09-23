@@ -1,6 +1,6 @@
 import Link from "next/link";
 import SiteHeader from "./components/site-header";
-import { latestJobs } from "./lib/hunterjob-api";
+import { latestJobs, listCompanies } from "./lib/hunterjob-api";
 
 function PinIcon() {
   return (
@@ -12,8 +12,9 @@ function PinIcon() {
 }
 
 export default async function Home() {
-  const result = await latestJobs();
+  const [result, companiesResult] = await Promise.all([latestJobs(), listCompanies()]);
   const jobs = result.data ?? [];
+  const companyNames = Object.fromEntries((companiesResult.data ?? []).map((company) => [company.id, company.name]));
 
   return (
     <main className="min-h-screen bg-[#fbfcff] text-[#111b35]">
@@ -66,7 +67,7 @@ export default async function Home() {
               <Link className="group grid gap-3 border-b border-[#e8edf5] px-3 py-5 transition hover:bg-white sm:grid-cols-[minmax(0,1fr)_180px_24px] sm:items-center" href={`/jobs/${job.id}`} key={job.id}>
                 <div className="min-w-0">
                   <p className="truncate text-lg font-semibold text-[#111b35]">{job.title}</p>
-                  <p className="mt-1 truncate text-sm text-[#71809f]">{job.skills.slice(0, 4).join("    ") || "Official company career page"}</p>
+                  <p className="mt-1 truncate text-sm text-[#71809f]">{companyNames[job.company_id] ?? "Verified company"} · {job.skills.slice(0, 3).join(" · ") || "Official career source"}</p>
                 </div>
                 <div className="flex items-center gap-2 text-sm text-[#71809f]">
                   <PinIcon />

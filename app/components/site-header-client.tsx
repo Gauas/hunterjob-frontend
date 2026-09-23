@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState, useSyncExternalStore } from "react";
-import { hasLocalSession } from "../lib/local-auth";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { hasLocalSession, localAccessToken } from "../lib/local-auth";
 import LogoutButton from "./logout-button";
 
 type SiteHeaderClientProps = {
@@ -15,6 +15,11 @@ type NavLinkProps = {
   active: boolean;
   children: string;
   href: string;
+};
+
+type Profile = {
+  first_name?: string;
+  last_name?: string;
 };
 
 function ChevronDownIcon() {
@@ -51,8 +56,9 @@ function GuestActions() {
   );
 }
 
-function UserDropdown() {
+function UserDropdown({ displayName }: { displayName: string }) {
   const [open, setOpen] = useState(false);
+  const initial = displayName.slice(0, 1).toUpperCase() || "H";
 
   return (
     <div className="relative shrink-0">
@@ -63,8 +69,8 @@ function UserDropdown() {
         onClick={() => setOpen((current) => !current)}
         type="button"
       >
-        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-950 text-lg font-semibold text-white">H</span>
-        <span className="hidden lg:block">Account</span>
+        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-950 text-lg font-semibold text-white">{initial}</span>
+        <span className="hidden lg:block">{displayName}</span>
         <span className="hidden lg:block"><ChevronDownIcon /></span>
       </button>
 
@@ -95,11 +101,37 @@ export default function SiteHeaderClient({ active, initialAuthenticated }: SiteH
     () => false,
   );
   const isAuthenticated = initialAuthenticated || hasClientSession;
+  const [displayName, setDisplayName] = useState("Account");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProfile() {
+      const accessToken = localAccessToken();
+      const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined;
+      const response = await fetch("/api/profile", { headers });
+
+      if (!response.ok || cancelled) return;
+
+      const profile = (await response.json()) as Profile;
+      const name = [profile.first_name, profile.last_name].filter(Boolean).join(" ");
+
+      if (!name) return;
+
+      setDisplayName(name);
+    }
+
+    if (isAuthenticated) void loadProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
 
   return (
     <header className="border-b border-slate-100 bg-white">
-      <div className="relative grid min-h-[82px] grid-cols-[minmax(145px,220px)_1fr_auto] items-center gap-x-6 px-6 sm:px-10 lg:min-h-[96px] lg:px-14">
-        <Link aria-label="HunterJob home" className="w-full max-w-[190px]" href="/">
+      <div className="relative flex min-h-[82px] items-center justify-between gap-6 px-6 sm:px-10 lg:min-h-[96px] lg:px-14">
+        <Link aria-label="HunterJob home" className="w-[145px] shrink-0 sm:w-[190px]" href="/">
           <Image
             alt="HunterJob"
             className="h-auto w-full object-contain"
@@ -112,13 +144,11 @@ export default function SiteHeaderClient({ active, initialAuthenticated }: SiteH
 
         <nav aria-label="Primary navigation" className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center gap-10 text-[15px] xl:flex">
           <NavLink active={active === "jobs"} href="/jobs">Jobs</NavLink>
-          <NavLink active={active === "companies"} href="/jobs#companies">Companies</NavLink>
+          <NavLink active={active === "companies"} href="/companies">Companies</NavLink>
           <NavLink active={active === "resources"} href="/jobs#resources">Resources</NavLink>
         </nav>
 
-        <div className="justify-self-end">
-          {isAuthenticated ? <UserDropdown /> : <GuestActions />}
-        </div>
+        {isAuthenticated ? <UserDropdown displayName={displayName} /> : <GuestActions />}
       </div>
     </header>
   );
