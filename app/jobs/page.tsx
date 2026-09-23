@@ -14,6 +14,16 @@ function positivePage(value: string | undefined) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
 }
 
+function apiKeyword(value: string) {
+  const aliases: Record<string, string> = {
+    nextjs: "Next.js",
+    nodejs: "Node.js",
+    reactjs: "React.js",
+    vuejs: "Vue.js",
+  };
+  return aliases[value.toLowerCase().replace(/[^a-z0-9]/g, "")] ?? value;
+}
+
 function pageHref(params: SearchParams, page: number) {
   const query = new URLSearchParams();
   for (const key of ["keyword", "location", "level", "remote"]) {
@@ -34,7 +44,7 @@ export default async function Jobs({ searchParams }: { searchParams: Promise<Sea
   const page = positivePage(firstValue(params.page));
 
   const [jobsResult, companiesResult] = await Promise.all([
-    listJobs({ keyword, location, level, remote, page, limit: 12 }),
+    listJobs({ keyword: apiKeyword(keyword), location, level, remote, page, limit: 12 }),
     listCompanies(),
   ]);
   const jobs = jobsResult.data ?? [];

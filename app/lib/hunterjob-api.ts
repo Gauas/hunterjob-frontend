@@ -58,8 +58,11 @@ export type APIResult<T> =
   | { data: T; error: null; meta?: PageMeta }
   | { data: null; error: string; meta?: undefined };
 
-function apiBaseUrl() {
-  return (process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL).replace(/\/+$/, "");
+export function apiBaseUrl() {
+  const configured = process.env.HUNTERJOB_API_BASE_URL
+    ?? (process.env.NODE_ENV === "development" ? process.env.NEXT_PUBLIC_API_BASE_URL : undefined)
+    ?? DEFAULT_API_BASE_URL;
+  return configured.replace(/\/+$/, "");
 }
 
 async function get<T>(path: string, revalidate?: number): Promise<APIResult<T>> {

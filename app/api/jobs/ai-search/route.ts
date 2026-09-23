@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const DEFAULT_API_BASE_URL = "https://api.gauas.com";
+import { apiBaseUrl } from "../../../lib/hunterjob-api";
 
 export async function POST(request: NextRequest) {
   const payload = await request.json().catch(() => null) as { query?: unknown } | null;
   const query = typeof payload?.query === "string" ? payload.query.trim() : "";
   if (!query) return NextResponse.json({ error: "Search query is required." }, { status: 400 });
 
-  const baseURL = (process.env.NEXT_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL).replace(/\/+$/, "");
   try {
-    const response = await fetch(`${baseURL}/api/v1/search/ai`, {
+    const response = await fetch(`${apiBaseUrl()}/api/v1/search/ai`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
