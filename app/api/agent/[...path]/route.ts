@@ -2,7 +2,7 @@ import { createHmac } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { accessTokenFromRequest, accountServiceBaseUrl } from "../../../lib/gauas-auth";
 
-const apiBaseUrl = (process.env.HUNTERJOB_API_BASE_URL ?? "http://localhost:8080").replace(/\/+$/, "");
+const apiBaseUrl = (process.env.HUNTERJOB_API_BASE_URL ?? "https://api.gauas.com").replace(/\/+$/, "");
 export const runtime = "nodejs";
 
 function userID(profile: unknown): string {
