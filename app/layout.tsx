@@ -3,8 +3,8 @@ import "./globals.css";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "HunterJob | Official career opportunities",
-  description: "Discover jobs from official company career pages.",
+  title: "HunterJob | Your personal job agent",
+  description: "Get jobs matched to your preferences and delivered to your chat apps.",
   icons: {
     icon: "/assets/branding/hunterjob-icon.png",
   },

@@ -5,3 +5,28 @@
 @keyframes toast-life{0%{opacity:0;transform:translateX(28px)}10%,82%{opacity:1;transform:translateX(0)}100%{opacity:0;transform:translateX(40px)}}
 .auth-toast{animation:toast-life 2s ease-in-out forwards}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important}.auth-toast{animation:none!important}}
+.agent-shell,.ask-shell{background:radial-gradient(circle at 50% 5%,#fff 0,#f6f7f8 53%,#f2f3f4 100%);font-family:Arial,Helvetica,sans-serif}
+.agent-card,.ask-card{background:rgba(255,255,255,.92);border:1px solid rgba(235,235,235,.5);box-shadow:0 17px 44px rgba(17,24,39,.055);border-radius:24px}
+.ask-card{box-shadow:0 25px 75px rgba(17,24,39,.09)}
+.agent-eyebrow{font-size:12px;font-weight:700;letter-spacing:.18em;color:#898989}
+.agent-label{display:block;font-size:14px;font-weight:600;color:#555}
+.agent-input{display:block;width:100%;height:54px;margin-top:9px;padding:0 16px;border:1px solid #dedede;border-radius:12px;background:#fff;color:#171717;outline:none;font-size:16px}
+.agent-input:focus{border-color:#555}
+.agent-dark-button{min-height:54px;border-radius:14px;background:#181818;color:#fff;font-weight:600;transition:background .2s}
+.agent-dark-button:hover{background:#3a3a3a}
+.agent-dark-button:disabled{opacity:.5}
+.detail-icon{display:flex;flex:none;align-items:center;justify-content:center;width:54px;height:54px;border-radius:16px;background:#f5f5f5}
+.detail-icon svg{width:24px;height:24px}
+.job-row+.job-row,.channel-row+.channel-row{border-top:1px solid #eee}
+.job-company-icon,.channel-icon{display:flex;flex:none;align-items:center;justify-content:center;width:56px;height:56px;border-radius:15px;background:#171717;color:#fff;font-size:26px;font-weight:700;box-shadow:0 4px 11px rgba(0,0,0,.1)}
+.channel-icon{font-size:24px}
+.channel-toggle{position:relative;width:58px;height:32px;border:1px solid #dedede;border-radius:20px;background:#e8e8e8;transition:background .2s}
+.channel-toggle.on{background:#171717}
+.channel-toggle span{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 5px rgba(0,0,0,.2);transition:transform .2s}
+.channel-toggle.on span{transform:translateX(26px)}
+.ask-icon{background:#f6f6f6;font-family:Arial,Helvetica,sans-serif}
+.ask-row{animation:ask-appear .5s ease both}
+.ask-answer{animation:ask-appear .45s ease both}
+.ask-cursor{animation:ask-blink .7s step-end infinite}
+@keyframes ask-appear{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes ask-blink{50%{opacity:0}}
