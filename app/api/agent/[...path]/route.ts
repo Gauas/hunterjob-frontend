@@ -48,7 +48,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
     return NextResponse.json({ error: "Account Service did not return a user ID" }, { status: 502 });
   }
 
-  const targetPath = `/api/v1/${path.map(encodeURIComponent).join("/")}${request.nextUrl.search}`;
+  const targetPath = `/v1/hunterjob/${path.map(encodeURIComponent).join("/")}${request.nextUrl.search}`;
   const timestamp = String(Math.floor(Date.now() / 1000));
   const message = `${request.method}\n${targetPath}\n${identity}\n${timestamp}`;
   const signature = createHmac("sha256", secret).update(message).digest("hex");
