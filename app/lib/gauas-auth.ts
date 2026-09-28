@@ -45,7 +45,7 @@ export function accessTokenFromRequest(request: NextRequest) {
 
 function cookieDomain() {
   if (process.env.NODE_ENV !== "production") return undefined;
-  return process.env.GAUAS_COOKIE_DOMAIN ?? ".gauas.com";
+  return process.env.GAUAS_COOKIE_DOMAIN?.trim() || undefined;
 }
 
 function errorResponse(error: string, status: number) {

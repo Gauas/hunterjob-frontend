@@ -4,20 +4,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { agentRequest, Connection, Dashboard, experienceLabel, Match } from "./lib/agent-client";
+import { agentRequest, Connection, Dashboard, experienceLabel, jobExperienceLabel, Match } from "./lib/agent-client";
 import { localAccessToken } from "./lib/local-auth";
 import LogoutButton from "./components/logout-button";
+import JobCompanyMark from "./components/job-company-mark";
 
 const channelIcons: Record<string, string> = { telegram: "➤", discord: "◕", zalo: "Z", messenger: "ϟ", whatsapp: "◉", email: "✉" };
 const channels = ["telegram", "discord", "zalo", "messenger", "whatsapp", "email"];
 function label(value: string) { return value.charAt(0).toUpperCase() + value.slice(1); }
-function relativeDate(value: string) {
-  const hours = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 3600000));
-  if (hours < 1) return "Just now";
-  if (hours < 24) return `${hours}h ago`;
-  if (hours < 48) return "Yesterday";
-  return `${Math.floor(hours / 24)} days ago`;
-}
 function SmallIcon({ kind }: { kind: string }) {
   const paths: Record<string, React.ReactNode> = {
     role: <><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 12h18"/></>,
@@ -32,12 +26,11 @@ function PreferenceDetail({ kind, title, value }: { kind: string; title: string;
   return <div className="flex min-w-0 items-center gap-4"><SmallIcon kind={kind}/><div className="min-w-0"><p className="text-sm text-[#777]">{title}</p><p className="truncate text-[17px] font-semibold text-[#171717]">{value}</p></div></div>;
 }
 function JobRow({ match }: { match: Match }) {
-  return <a className="job-row group grid gap-3 py-4 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,.7fr)_95px_84px_20px] sm:items-center" href={match.job.job_url} rel="noopener noreferrer" target="_blank">
-    <div className="flex min-w-0 items-center gap-4"><span className="job-company-icon">{match.job.company_name.slice(0, 1).toUpperCase()}</span><div className="min-w-0"><p className="truncate font-semibold text-[#171717]">{match.job.title}</p><p className="truncate text-sm text-[#777]">{match.job.company_name}</p></div></div>
-    <p className="truncate text-sm text-[#5e5e5e]">⌖ &nbsp;{match.job.location}</p>
-    <p className="text-sm text-[#5e5e5e]">◷ &nbsp;{relativeDate(match.job.discovered_at || match.matched_at)}</p>
-    <span className="justify-self-start rounded-full bg-[#f3f3f3] px-3 py-1 text-xs">{match.job.source || "Job Lake"}</span>
-    <span className="hidden text-xl transition group-hover:translate-x-1 sm:block">›</span>
+  return <a className="job-row group flex items-center gap-4 py-4" href={match.job.job_url} rel="noopener noreferrer" target="_blank">
+    <JobCompanyMark name={match.job.company_name} logoURL={match.job.company_logo_url} />
+    <div className="min-w-0 flex-1"><p className="truncate font-semibold text-[#171717]">{match.job.title}</p><p className="truncate text-sm text-[#777]">{match.job.company_name}</p><p className="text-xs text-[#777] sm:hidden">{jobExperienceLabel(match.job)}</p></div>
+    <span className="hidden rounded-full bg-[#f3f3f3] px-3 py-1 text-xs text-[#555] sm:block">{jobExperienceLabel(match.job)}</span>
+    <span className="text-xl transition group-hover:translate-x-1" aria-label="Open original job post">↗</span>
   </a>;
 }
 
