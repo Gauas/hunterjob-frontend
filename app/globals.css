@@ -24,7 +24,6 @@
 .channel-toggle.on{background:#171717}
 .channel-toggle span{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 5px rgba(0,0,0,.2);transition:transform .2s}
 .channel-toggle.on span{transform:translateX(26px)}
-.ask-icon{background:#f6f6f6;font-family:Arial,Helvetica,sans-serif}
 .ask-row{animation:ask-appear .5s ease both}
 .ask-answer{animation:ask-appear .45s ease both}
 .ask-cursor{animation:ask-blink .7s step-end infinite}
