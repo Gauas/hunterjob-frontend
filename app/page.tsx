@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { agentRequest, Connection, Dashboard, experienceLabel, jobExperienceLabel, Match } from "./lib/agent-client";
 import { localAccessToken } from "./lib/local-auth";
@@ -45,6 +45,17 @@ export default function Home() {
   const [name, setName] = useState("Profile");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
+  const [telegramLink, setTelegramLink] = useState<{ url: string; expiresAt: number } | null>(null);
+  const applyConnections = useCallback((items: Connection[]) => {
+    setDashboard((current) => {
+      const previous = current ?? snapshot?.dashboard;
+      return previous ? { ...previous, connections: items } : null;
+    });
+    if (items.some((item) => item.provider === "telegram" && item.connected)) {
+      setTelegramLink(null);
+      setError("");
+    }
+  }, [snapshot]);
   useEffect(() => {
     let active = true;
     async function load() {
@@ -70,15 +81,34 @@ export default function Home() {
   useEffect(() => {
     const updateConnections = () => {
       void agentRequest<{ items: Connection[] }>("connections").then((result) => {
-        setDashboard((current) => {
-          const previous = current ?? snapshot?.dashboard;
-          return previous ? { ...previous, connections: result.items } : null;
-        });
+        applyConnections(result.items);
       }).catch(() => { /* The dashboard will show the last known connection state. */ });
     };
     window.addEventListener("focus", updateConnections);
     return () => window.removeEventListener("focus", updateConnections);
-  }, [snapshot]);
+  }, [applyConnections]);
+
+  useEffect(() => {
+    if (!telegramLink) return;
+    let active = true;
+    let timer = 0;
+    const check = async () => {
+      if (Date.now() >= telegramLink.expiresAt) {
+        setTelegramLink(null);
+        setError("Telegram connection link expired. Select Connect to try again.");
+        return;
+      }
+      try {
+        const result = await agentRequest<{ items: Connection[] }>("connections");
+        if (!active) return;
+        applyConnections(result.items);
+        if (result.items.some((item) => item.provider === "telegram" && item.connected)) return;
+      } catch { /* Keep waiting until the link expires or the connection succeeds. */ }
+      if (active) timer = window.setTimeout(check, 3000);
+    };
+    timer = window.setTimeout(check, 3000);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [telegramLink, applyConnections]);
 
   async function act(connection: Connection) {
     if (!connection.available) return;
@@ -86,7 +116,13 @@ export default function Home() {
     try {
       if (!connection.connected) {
         const result = await agentRequest<{ connection_url: string }>(`connections/${connection.provider}/connect`, { method: "POST" });
-        if (result.connection_url) window.location.assign(result.connection_url);
+        if (connection.provider === "telegram" && result.connection_url) {
+          setTelegramLink({ url: result.connection_url, expiresAt: Date.now() + 10 * 60 * 1000 });
+        } else if (result.connection_url) {
+          window.location.assign(result.connection_url);
+        } else {
+          throw new Error("Could not open the connection link. Please try again.");
+        }
       } else {
         const enabled = !connection.enabled;
         await agentRequest(`connections/${connection.provider}`, { method: "PATCH", body: JSON.stringify({ enabled }) });
@@ -101,11 +137,22 @@ export default function Home() {
   async function refreshConnections() {
     try {
       const result = await agentRequest<{ items: Connection[] }>("connections");
+      applyConnections(result.items);
+    } catch { /* Keep the last known state. */ }
+  }
+
+  async function disconnectTelegram() {
+    setBusy("telegram"); setError("");
+    try {
+      await agentRequest("connections/telegram/disconnect", { method: "POST" });
+      setTelegramLink(null);
       setDashboard((current) => {
         const previous = current ?? snapshot?.dashboard;
-        return previous ? { ...previous, connections: result.items } : null;
+        return previous ? { ...previous, connections: previous.connections.map((item) => item.provider === "telegram" ? { ...item, connected: false, enabled: false } : item) } : null;
       });
-    } catch { /* Keep the last known state. */ }
+      await refreshConnections();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not disconnect Telegram."); }
+    finally { setBusy(""); }
   }
 
   if (!dashboard && !snapshot && error) return <main className="agent-shell min-h-screen px-5 py-9"><div className="mx-auto max-w-5xl"><BrandLogo/><section className="agent-card mt-10 max-w-2xl p-8 sm:p-12"><h1 className="text-2xl font-semibold">We could not open your dashboard</h1><p className="mt-3 text-[#777]">{error}</p><button className="agent-dark-button mt-7" onClick={() => window.location.reload()} type="button">Try again</button></section></div></main>;
@@ -121,7 +168,29 @@ export default function Home() {
           <section className="agent-card p-7 sm:p-9"><div className="flex items-center justify-between gap-3"><h1 className="text-2xl font-semibold tracking-tight">Search preferences</h1><Link className="rounded-full border border-[#e8e8e8] px-5 py-2 text-sm transition hover:bg-[#f7f7f7]" href="/preferences">✎ &nbsp; Edit</Link></div><div className="mt-9 grid gap-8 sm:grid-cols-3"><PreferenceDetail kind="role" title="Role" value={pref.role}/><PreferenceDetail kind="experience" title="Experience" value={experienceLabel(pref.experience)}/><PreferenceDetail kind="location" title="Location" value={pref.locations.join(", ")}/></div><div className="mt-8 grid gap-8 sm:grid-cols-2"><PreferenceDetail kind="keywords" title="Keywords" value={pref.keywords.join(", ") || "Any"}/><PreferenceDetail kind="delivery" title="Delivery" value="Daily"/></div></section>
           <section className="agent-card flex-1 p-7 sm:p-9"><div className="flex items-center justify-between gap-3"><h2 className="text-2xl font-semibold tracking-tight">Recently added jobs</h2><Link className="text-sm transition hover:translate-x-1" href="/matches">View all &nbsp; →</Link></div><div className="mt-5">{visibleDashboard.recent_jobs.length ? visibleDashboard.recent_jobs.map((item) => <JobRow key={item.id} match={item}/>) : <p className="py-12 text-center text-[#888]">Your matches will appear here as new jobs arrive.</p>}</div></section>
         </div>
-        <section className="agent-card p-7 sm:p-9"><h2 className="text-2xl font-semibold tracking-tight">Chat delivery</h2><p className="mt-2 text-[#777]">Get new jobs delivered to your favorite apps</p><div className="mt-7">{channels.map((provider) => { const connection = visibleDashboard.connections.find((item) => item.provider === provider) ?? { provider, available: false, connected: false, enabled: false }; return <div className="channel-row flex items-center gap-5 py-5" key={provider}><span className="channel-icon">{channelIcons[provider]}</span><div className="min-w-0 flex-1"><p className="font-semibold">{label(provider)}</p><p className="mt-1 text-sm text-[#858585]">● &nbsp;{connection.connected ? "Connected" : connection.available ? "Not connected" : "Coming soon"}</p></div><button aria-label={`${connection.connected ? connection.enabled ? "Pause" : "Enable" : "Connect"} ${provider}`} aria-pressed={connection.connected ? connection.enabled : undefined} className={connection.connected ? `channel-toggle ${connection.enabled ? "on" : ""}` : "rounded-2xl border border-[#eee] px-5 py-3 text-sm disabled:cursor-not-allowed disabled:text-[#aaa]"} disabled={!connection.available || busy === provider} onClick={() => void act(connection)} type="button">{connection.connected ? <span/> : "Connect"}</button></div>; })}</div><button className="mt-5 text-xs text-[#999] underline underline-offset-4" onClick={() => void refreshConnections()} type="button">Refresh connection status</button>{error && <p className="mt-4 text-sm text-red-700">{error}</p>}</section>
+        <section className="agent-card p-7 sm:p-9">
+          <h2 className="text-2xl font-semibold tracking-tight">Chat delivery</h2>
+          <p className="mt-2 text-[#777]">Get new jobs delivered to your favorite apps</p>
+          <div className="mt-7">{channels.map((provider) => {
+            const connection = visibleDashboard.connections.find((item) => item.provider === provider) ?? { provider, available: false, connected: false, enabled: false };
+            const status = connection.connected ? connection.enabled ? "Connected · On" : "Connected · Paused" : provider === "telegram" && telegramLink ? "Waiting for Start" : connection.available ? "Not connected" : "Coming soon";
+            return <div className="border-t border-[#eee] first:border-t-0" key={provider}>
+              <div className="channel-row flex items-center gap-5 py-5">
+                <span className="channel-icon">{channelIcons[provider]}</span>
+                <div className="min-w-0 flex-1"><p className="font-semibold">{label(provider)}</p><p className="mt-1 text-sm text-[#858585]">● &nbsp;{status}</p></div>
+                <button aria-label={`${connection.connected ? connection.enabled ? "Pause" : "Enable" : "Connect"} ${provider}`} aria-pressed={connection.connected ? connection.enabled : undefined} className={connection.connected ? `channel-toggle ${connection.enabled ? "on" : ""}` : "rounded-2xl border border-[#eee] px-5 py-3 text-sm disabled:cursor-not-allowed disabled:text-[#aaa]"} disabled={!connection.available || busy === provider || (provider === "telegram" && Boolean(telegramLink))} onClick={() => void act(connection)} type="button">{connection.connected ? <span/> : provider === "telegram" && telegramLink ? "Pending" : "Connect"}</button>
+              </div>
+              {provider === "telegram" && connection.connected && <button className="mb-3 ml-[76px] text-xs text-[#777] underline underline-offset-4 hover:text-[#171717]" disabled={busy === "telegram"} onClick={() => void disconnectTelegram()} type="button">Disconnect Telegram</button>}
+            </div>;
+          })}</div>
+          {telegramLink && <div className="mt-5 rounded-2xl border border-[#ededed] bg-[#fafafa] p-5">
+            <p className="font-semibold">Finish connecting Telegram</p>
+            <p className="mt-2 text-sm leading-6 text-[#777]">Open the bot in a private chat and tap Start. This page will update when your account is connected.</p>
+            <a className="agent-dark-button mt-4 inline-flex items-center justify-center px-6" href={telegramLink.url} rel="noopener noreferrer" target="_blank">Open Telegram ↗</a>
+            <div className="mt-4 flex items-center justify-between gap-3 text-xs text-[#999]"><span>Link expires in 10 minutes.</span><button className="underline underline-offset-4" onClick={() => setTelegramLink(null)} type="button">Cancel</button></div>
+          </div>}
+          {error && <p className="mt-4 text-sm text-red-700">{error}</p>}
+        </section>
       </div>
     </div>
   </main>;
