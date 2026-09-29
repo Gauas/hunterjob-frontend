@@ -53,7 +53,7 @@ export default function AskPage() {
       } catch (cause) {
         if (!active) return;
         if (cause instanceof AccountProfileError && [401, 403].includes(cause.status)) { router.replace("/login"); return; }
-        setLoadError(cause instanceof Error ? cause.message : "Your job agent is unavailable.");
+        setLoadError(cause instanceof Error ? cause.message : "Search preferences are unavailable.");
       }
     }
     void load();
@@ -85,7 +85,7 @@ export default function AskPage() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save preferences."); setSaving(false); }
   }
 
-  if (loadError) return <main className="ask-shell flex min-h-screen items-center justify-center px-5 py-10"><section className="ask-card w-full max-w-xl p-8 sm:p-12"><h1 className="text-2xl font-semibold">We could not open your job agent</h1><p className="mt-3 text-[#777]">{loadError}</p><button className="agent-dark-button mt-7" onClick={() => window.location.reload()} type="button">Try again</button></section></main>;
+  if (loadError) return <main className="ask-shell flex min-h-screen items-center justify-center px-5 py-10"><section className="ask-card w-full max-w-xl p-8 sm:p-12"><h1 className="text-2xl font-semibold">We could not open this page</h1><p className="mt-3 text-[#777]">{loadError}</p><button className="agent-dark-button mt-7" onClick={() => window.location.reload()} type="button">Try again</button></section></main>;
   if (!ready) return <PagePending />;
   return <main className="ask-shell flex min-h-screen items-center justify-center px-5 py-10 text-[#10131b]">
     <section className="ask-card w-full max-w-[1070px] rounded-[30px] px-7 py-11 sm:px-14 sm:py-16">
@@ -98,7 +98,7 @@ export default function AskPage() {
       <form className="mt-12 sm:mt-16" onSubmit={submit}>
         <div className="flex items-center border-b border-[#d6d6d6] pb-3">
           <input aria-label={questions[step].prompt} autoFocus className="w-full bg-transparent py-2 text-xl outline-none placeholder:text-[#a8a8a8] sm:text-[26px]" onChange={(event) => setDraft(event.target.value)} placeholder={step === 1 ? "e.g. 1-2 years" : step === 3 ? "Kubernetes, Docker, AWS" : "Type your answer"} value={draft} />
-          <button aria-label={step === 3 ? "Finish" : "Continue"} className="ml-4 px-3 py-2 text-3xl transition hover:translate-x-1 disabled:opacity-40" disabled={saving} type="submit">➤</button>
+          <button className="ml-4 rounded-full bg-[#1b1d1e] px-5 py-2 text-sm font-medium text-white transition hover:bg-[#383a3b] disabled:opacity-40" disabled={saving} type="submit">{step === 3 ? "Finish" : "Continue"}</button>
         </div>
         {error && <p className="mt-3 text-sm text-red-700">{error}</p>}
         {step === 3 && <p className="mt-3 text-sm text-[#999]">Separate keywords with commas. You can leave this blank.</p>}
