@@ -3,33 +3,46 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import BrandLogo from "./brand-logo";
+import PagePending from "./page-pending";
 import { agentRequest, Preference } from "../lib/agent-client";
+import { AccountProfile, AccountProfileError, getAccountProfile, hasCompletedProfile } from "../lib/entry-route";
 import { localAccessToken } from "../lib/local-auth";
-
-type Profile = { first_name?: string; last_name?: string; gender?: string; dob?: string };
 
 export default function OnboardingFlow() {
   const router = useRouter();
-  const [profile, setProfile] = useState<Profile>({});
+  const [profile, setProfile] = useState<AccountProfile>({});
   const [error, setError] = useState("");
+  const [loadError, setLoadError] = useState("");
   const [pending, setPending] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      const token = localAccessToken();
-      const response = await fetch("/api/profile", { headers: token ? { Authorization: `Bearer ${token}` } : undefined });
-      if (!response.ok) { if (!cancelled) router.replace("/login"); return; }
-      const data = await response.json() as Profile;
+      let data: AccountProfile;
+      try {
+        data = await getAccountProfile(localAccessToken());
+      } catch (cause) {
+        if (cancelled) return;
+        if (cause instanceof AccountProfileError && [401, 403].includes(cause.status)) { router.replace("/login"); return; }
+        setLoadError(cause instanceof Error ? cause.message : "Your profile is unavailable.");
+        setLoading(false);
+        return;
+      }
       if (cancelled) return;
       setProfile({ ...data, dob: data.dob?.slice(0, 10) });
-      if (data.first_name && data.last_name && data.gender && data.dob) {
+      if (hasCompletedProfile(data)) {
         try {
           const result = await agentRequest<{ data: Preference | null }>("search-preference");
+          if (cancelled) return;
           router.replace(result.data ? "/" : "/ask");
           return;
-        } catch { /* Profile can still be edited while the agent API recovers. */ }
+        } catch (cause) {
+          if (cancelled) return;
+          setLoadError(cause instanceof Error ? cause.message : "Your job agent is unavailable.");
+          setLoading(false);
+          return;
+        }
       }
       setLoading(false);
     }
@@ -55,7 +68,8 @@ export default function OnboardingFlow() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Please try again."); setPending(false); }
   }
 
-  if (loading) return <main className="agent-shell flex min-h-screen items-center justify-center">Loading your profile…</main>;
+  if (loading) return <PagePending />;
+  if (loadError) return <main className="agent-shell min-h-screen px-5 py-10"><div className="mx-auto max-w-5xl"><BrandLogo/><section className="agent-card mt-10 max-w-2xl p-8 sm:p-12"><h1 className="text-2xl font-semibold">We could not open your profile</h1><p className="mt-3 text-[#777]">{loadError}</p><button className="agent-dark-button mt-7" onClick={() => window.location.reload()} type="button">Try again</button></section></div></main>;
   return (
     <main className="agent-shell min-h-screen px-5 py-10 sm:px-10">
       <div className="mx-auto max-w-5xl"><BrandLogo /></div>

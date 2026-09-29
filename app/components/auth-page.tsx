@@ -4,7 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
-import { LocalTokenPair, persistLocalSession } from "../lib/local-auth";
+import { clearLocalSession, LocalTokenPair, persistLocalSession } from "../lib/local-auth";
+import { nextRouteAfterLogin } from "../lib/entry-route";
+import { useEntrySession } from "./entry-session";
 
 type AuthPageProps = {
   mode: "login" | "register";
@@ -51,6 +53,7 @@ function PasswordField({ isLogin }: { isLogin: boolean }) {
 
 export default function AuthPage({ mode }: AuthPageProps) {
   const router = useRouter();
+  const { setSnapshot } = useEntrySession();
   const isLogin = mode === "login";
   const alternateHref = isLogin ? "/register" : "/login";
   const alternatePrompt = isLogin ? "Don't have an account?" : "Already have an account?";
@@ -66,6 +69,7 @@ export default function AuthPage({ mode }: AuthPageProps) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
+    let navigating = false;
     setError("");
     setPending(true);
 
@@ -96,19 +100,24 @@ export default function AuthPage({ mode }: AuthPageProps) {
 
         if (process.env.NODE_ENV === "development" && tokens?.access_token && tokens.refresh_token) {
           persistLocalSession(tokens);
+        } else {
+          clearLocalSession();
         }
 
-        router.replace("/onboarding");
-        router.refresh();
+        const { destination, snapshot } = await nextRouteAfterLogin(tokens?.access_token ?? "");
+        setSnapshot(snapshot);
+        navigating = true;
+        router.replace(destination);
         return;
       }
 
       form.reset();
+      navigating = true;
       router.replace(payload?.verificationRequired === false ? "/login" : "/verify");
-    } catch {
-      setError("We couldn't complete your request. Please check your connection and try again.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "We couldn't complete your request. Please try again.");
     } finally {
-      setPending(false);
+      if (!navigating) setPending(false);
     }
   }
 

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { clearLocalSession, localAccessToken } from "../lib/local-auth";
+import { useEntrySession } from "./entry-session";
 
 type LogoutButtonProps = {
   onComplete?: () => void;
@@ -10,6 +11,7 @@ type LogoutButtonProps = {
 
 export default function LogoutButton({ onComplete }: LogoutButtonProps) {
   const router = useRouter();
+  const { setSnapshot } = useEntrySession();
   const [pending, setPending] = useState(false);
 
   async function logout() {
@@ -22,6 +24,7 @@ export default function LogoutButton({ onComplete }: LogoutButtonProps) {
       await fetch("/api/auth/logout", { headers, method: "POST" });
     } finally {
       clearLocalSession();
+      setSnapshot(null);
       onComplete?.();
       router.replace("/login");
       router.refresh();

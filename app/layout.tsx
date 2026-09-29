@@ -1,6 +1,7 @@
 import "./globals.css";
 
 import type { Metadata } from "next";
+import { EntrySessionProvider } from "./components/entry-session";
 
 export const metadata: Metadata = {
   title: "HunterJob | Your personal job agent",
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body><EntrySessionProvider>{children}</EntrySessionProvider></body>
     </html>
   );
 }

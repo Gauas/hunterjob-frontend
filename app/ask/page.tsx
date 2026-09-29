@@ -3,6 +3,8 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { agentRequest, Preference } from "../lib/agent-client";
+import PagePending from "../components/page-pending";
+import { AccountProfileError, getAccountProfile, hasCompletedProfile } from "../lib/entry-route";
 import { localAccessToken } from "../lib/local-auth";
 
 type Step = "role" | "experience" | "location" | "keywords";
@@ -34,22 +36,25 @@ export default function AskPage() {
   const [answers, setAnswers] = useState<Record<Step, string>>({ role: "", experience: "", location: "", keywords: "" });
   const [draft, setDraft] = useState("");
   const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   useEffect(() => {
     let active = true;
     async function load() {
-      const token = localAccessToken();
-      const response = await fetch("/api/profile", { headers: token ? { Authorization: `Bearer ${token}` } : undefined });
-      if (!active) return;
-      if (!response.ok) { router.replace("/login"); return; }
-      const profile = await response.json() as { first_name?: string; last_name?: string; gender?: string; dob?: string };
-      if (!profile.first_name || !profile.last_name || !profile.gender || !profile.dob) { router.replace("/onboarding"); return; }
       try {
+        const profile = await getAccountProfile(localAccessToken());
+        if (!active) return;
+        if (!hasCompletedProfile(profile)) { router.replace("/onboarding"); return; }
         const result = await agentRequest<{ data: Preference | null }>("search-preference");
+        if (!active) return;
         if (result.data) { router.replace("/"); return; }
-      } catch { /* The form remains available and will report save errors. */ }
-      setReady(true);
+        setReady(true);
+      } catch (cause) {
+        if (!active) return;
+        if (cause instanceof AccountProfileError && [401, 403].includes(cause.status)) { router.replace("/login"); return; }
+        setLoadError(cause instanceof Error ? cause.message : "Your job agent is unavailable.");
+      }
     }
     void load();
     return () => { active = false; };
@@ -80,7 +85,8 @@ export default function AskPage() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save preferences."); setSaving(false); }
   }
 
-  if (!ready) return <main className="agent-shell flex min-h-screen items-center justify-center">Loading…</main>;
+  if (loadError) return <main className="ask-shell flex min-h-screen items-center justify-center px-5 py-10"><section className="ask-card w-full max-w-xl p-8 sm:p-12"><h1 className="text-2xl font-semibold">We could not open your job agent</h1><p className="mt-3 text-[#777]">{loadError}</p><button className="agent-dark-button mt-7" onClick={() => window.location.reload()} type="button">Try again</button></section></main>;
+  if (!ready) return <PagePending />;
   return <main className="ask-shell flex min-h-screen items-center justify-center px-5 py-10 text-[#10131b]">
     <section className="ask-card w-full max-w-[1070px] rounded-[30px] px-7 py-11 sm:px-14 sm:py-16">
       <div className="space-y-10 sm:space-y-14">
