@@ -21,7 +21,7 @@ function userID(profile: unknown): string {
 async function proxy(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
   const token = accessTokenFromRequest(request);
   if (!token) return NextResponse.json({ error: "Authentication is required" }, { status: 401 });
-  const secret = process.env.HUNTERJOB_INTERNAL_AUTH_SECRET ?? "";
+  const secret = process.env.INTERNAL_AUTH_SECRET ?? "";
   if (secret.length < 32) return NextResponse.json({ error: "HunterJob authentication is not configured" }, { status: 503 });
   const { path } = await context.params;
   const allowed = ["dashboard", "search-preference", "matches", "connections"];
