@@ -26,12 +26,8 @@ type AuthResult<T> =
   | { data: T; ok: true }
   | { ok: false; response: NextResponse };
 
-function apiBaseUrl() {
-  return (process.env.GAUAS_API_BASE_URL ?? DEFAULT_API_BASE_URL).replace(/\/+$/, "");
-}
-
-export function accountServiceBaseUrl() {
-  return (process.env.ACCOUNT_SERVICE_BASE_URL ?? apiBaseUrl()).replace(/\/+$/, "");
+export function apiBaseUrl() {
+  return (process.env.API_BASE_URL ?? DEFAULT_API_BASE_URL).replace(/\/+$/, "");
 }
 
 export function accessTokenFromRequest(request: NextRequest) {
@@ -166,7 +162,7 @@ export async function verifyGauasEmail(request: NextRequest): Promise<Verificati
 
   let upstream: Response;
   try {
-    upstream = await fetch(`${accountServiceBaseUrl()}/v1/auth/verify`, {
+    upstream = await fetch(`${apiBaseUrl()}/v1/auth/verify`, {
       body: JSON.stringify({ identifier, code }),
       cache: "no-store",
       headers,
@@ -206,7 +202,7 @@ export function setAuthCookies(response: NextResponse, tokens: LoginTokens) {
   response.cookies.set("gauas_access_token", tokens.access_token, {
     domain,
     httpOnly: true,
-    maxAge: 15 * 60,
+    maxAge: 10 * 60,
     path: "/",
     sameSite: "lax",
     secure,
@@ -221,21 +217,38 @@ export function setAuthCookies(response: NextResponse, tokens: LoginTokens) {
   });
 }
 
-export async function revokeGauasSession(accessToken: string) {
-  if (!accessToken) return;
-
+export async function revokeGauasSession(accessToken: string, refreshToken: string): Promise<boolean> {
+  if (!accessToken && !refreshToken) return true;
   try {
-    await fetch(`${accountServiceBaseUrl()}/v1/auth/logout`, {
+    const logout = (token: string) => fetch(`${apiBaseUrl()}/v1/auth/logout`, {
       cache: "no-store",
       headers: {
         Accept: "application/json",
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${token}`,
       },
       method: "POST",
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
+    if (accessToken) {
+      const response = await logout(accessToken);
+      if (response.ok) return true;
+      if (response.status !== 401) return false;
+    }
+    if (!refreshToken) return true;
+    const refreshed = await fetch(`${apiBaseUrl()}/v1/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    if (refreshed.status === 401) return true; // Session was already invalid.
+    if (!refreshed.ok) return false;
+    const tokens = await refreshed.json() as LoginTokens;
+    if (!tokens.access_token) return false;
+    return (await logout(tokens.access_token)).ok;
   } catch {
-    console.error("Gauas logout request failed");
+    return false;
   }
 }
 

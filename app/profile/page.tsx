@@ -7,24 +7,24 @@ import BrandLogo from "../components/brand-logo";
 import LogoutButton from "../components/logout-button";
 import PagePending from "../components/page-pending";
 import { localAccessToken } from "../lib/local-auth";
-
-type Profile = { first_name?: string; last_name?: string; email?: string; identifier?: string; gender?: string; dob?: string; user_key?: string };
+import { AccountProfile, AccountProfileError, getAccountProfile } from "../lib/entry-route";
 
 export default function ProfilePage() {
   const router = useRouter();
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
     let active = true;
     async function load() {
       const token = localAccessToken();
       try {
-        const response = await fetch("/api/profile", { cache: "no-store", headers: token ? { Authorization: `Bearer ${token}` } : undefined });
-        if (response.status === 401) { router.replace("/login"); return; }
-        if (!response.ok) throw new Error("Could not load your profile.");
-        const result = await response.json() as Profile;
+        const result = await getAccountProfile(token);
         if (active) setProfile(result);
-      } catch (cause) { if (active) setError(cause instanceof Error ? cause.message : "Could not load your profile."); }
+      } catch (cause) {
+        if (!active) return;
+        if (cause instanceof AccountProfileError && [401, 403].includes(cause.status)) { router.replace("/login"); return; }
+        setError(cause instanceof Error ? cause.message : "Could not load your profile.");
+      }
     }
     void load();
     return () => { active = false; };

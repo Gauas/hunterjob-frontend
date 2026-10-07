@@ -1,4 +1,5 @@
-import { localAccessToken } from "./local-auth";
+import { clearLocalSession, localAccessToken } from "./local-auth";
+import { refreshSession } from "./session-refresh";
 
 export type Preference = {
   id: string;
@@ -21,12 +22,19 @@ export type Connection = { provider: string; available: boolean; connected: bool
 export type Dashboard = { search_preference: Preference | null; recent_jobs: Match[]; connections: Connection[] };
 
 export async function agentRequest<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = localAccessToken();
-  const response = await fetch(`/api/agent/${path}`, {
-    ...init,
-    cache: "no-store",
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init?.headers },
-  });
+  const send = () => {
+    const token = localAccessToken();
+    return fetch(`/api/agent/${path}`, {
+      ...init,
+      cache: "no-store",
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init?.headers },
+    });
+  };
+  let response = await send();
+  if (response.status === 401 && await refreshSession()) {
+    clearLocalSession();
+    response = await send();
+  }
   if (!response.ok) {
     const payload = await response.json().catch(() => ({})) as { error?: string };
     throw new Error(payload.error ?? "Request failed");

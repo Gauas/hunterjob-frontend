@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { accessTokenFromRequest, accountServiceBaseUrl } from "../../lib/gauas-auth";
+import { accessTokenFromRequest, apiBaseUrl } from "../../lib/gauas-auth";
 
 const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -23,7 +23,7 @@ async function proxyProfile(request: NextRequest, method: "GET" | "PATCH") {
 
   let upstream: Response;
   try {
-    upstream = await fetch(`${accountServiceBaseUrl()}/v1/users/me`, {
+    upstream = await fetch(`${apiBaseUrl()}/v1/users/me`, {
       body,
       cache: "no-store",
       headers,

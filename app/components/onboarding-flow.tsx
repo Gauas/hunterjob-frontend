@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import BrandLogo from "./brand-logo";
 import PagePending from "./page-pending";
 import { agentRequest, Preference } from "../lib/agent-client";
-import { AccountProfile, AccountProfileError, getAccountProfile, hasCompletedProfile } from "../lib/entry-route";
+import { AccountProfile, AccountProfileError, getAccountProfile, hasCompletedProfile, updateAccountProfile } from "../lib/entry-route";
 import { localAccessToken } from "../lib/local-auth";
 
 export default function OnboardingFlow() {
@@ -58,12 +58,7 @@ export default function OnboardingFlow() {
     setPending(true); setError("");
     const token = localAccessToken();
     try {
-      const response = await fetch("/api/profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ first_name: profile.first_name.trim(), last_name: profile.last_name.trim(), gender: profile.gender, dob: profile.dob }),
-      });
-      if (!response.ok) throw new Error("We could not save your profile.");
+      await updateAccountProfile({ first_name: profile.first_name.trim(), last_name: profile.last_name.trim(), gender: profile.gender, dob: profile.dob }, token);
       router.replace("/ask");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Please try again."); setPending(false); }
   }

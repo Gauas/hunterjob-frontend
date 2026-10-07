@@ -13,27 +13,32 @@ export default function LogoutButton({ onComplete }: LogoutButtonProps) {
   const router = useRouter();
   const { setSnapshot } = useEntrySession();
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
 
   async function logout() {
     const accessToken = localAccessToken();
     const headers = accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined;
 
     setPending(true);
+    setError("");
 
     try {
-      await fetch("/api/auth/logout", { headers, method: "POST" });
-    } finally {
+      const response = await fetch("/api/auth/logout", { headers, method: "POST" });
+      if (!response.ok) throw new Error("Could not end your session. Please try again.");
       clearLocalSession();
       setSnapshot(null);
       onComplete?.();
       router.replace("/login");
       router.refresh();
+    } catch {
+      setError("Could not end your session. Please try again.");
+    } finally {
       setPending(false);
     }
   }
 
   return (
-    <button
+    <><button
       className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-slate-800 transition hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
       disabled={pending}
       onClick={logout}
@@ -45,6 +50,6 @@ export default function LogoutButton({ onComplete }: LogoutButtonProps) {
         <path d="M21 19V5a2 2 0 0 0-2-2h-8" />
       </svg>
       {pending ? "Logging out..." : "Log out"}
-    </button>
+    </button>{error && <p className="px-4 pb-2 text-xs text-red-700">{error}</p>}</>
   );
 }

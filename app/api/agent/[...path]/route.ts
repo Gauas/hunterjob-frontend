@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { accessTokenFromRequest } from "../../../lib/gauas-auth";
+import { accessTokenFromRequest, apiBaseUrl } from "../../../lib/gauas-auth";
 
-const apiBaseUrl = (process.env.HUNTERJOB_API_BASE_URL ?? "https://api.gauas.com").replace(/\/+$/, "");
 export const runtime = "nodejs";
 
 async function proxy(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
@@ -15,7 +14,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
 
   const targetPath = `/v1/hunterjob/${path.map(encodeURIComponent).join("/")}${request.nextUrl.search}`;
   try {
-    const upstream = await fetch(`${apiBaseUrl}${targetPath}`, {
+    const upstream = await fetch(`${apiBaseUrl()}${targetPath}`, {
       method: request.method,
       headers: {
         "Content-Type": "application/json",
