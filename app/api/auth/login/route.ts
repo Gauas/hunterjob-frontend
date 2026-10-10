@@ -13,15 +13,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (process.env.NODE_ENV === "development") {
-    return NextResponse.json(
-      { ok: true, tokens: result.data },
-      { headers: { "Cache-Control": "no-store" } },
-    );
-  }
-
   const response = NextResponse.json(
-    { ok: true },
+    process.env.NODE_ENV === "development" ? { ok: true, tokens: result.data } : { ok: true },
     { headers: { "Cache-Control": "no-store" } },
   );
   setAuthCookies(response, result.data);
