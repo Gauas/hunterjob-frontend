@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiBaseUrl, LoginTokens, setAuthCookies } from "../../../lib/gauas-auth";
+import { hasSameOrigin } from "../../../lib/request-origin";
 
 export async function POST(request: NextRequest) {
-  const origin = request.headers.get("origin");
-  if (origin && origin !== request.nextUrl.origin) {
+  if (!hasSameOrigin(request.headers)) {
     return NextResponse.json({ error: "Invalid request origin" }, { status: 403 });
   }
   const body = await request.json().catch(() => null) as { id_token?: unknown } | null;

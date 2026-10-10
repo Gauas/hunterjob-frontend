@@ -3,27 +3,19 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import Script from "next/script";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { clearLocalSession, LocalTokenPair, persistLocalSession } from "../lib/local-auth";
 import { nextRouteAfterLogin } from "../lib/entry-route";
 import { useEntrySession } from "./entry-session";
+import PendingDots from "./pending-dots";
+import GoogleSignInButton from "./google-sign-in-button";
 
 type AuthPageProps = {
   mode: "login" | "register";
 };
 
 function GitHubIcon() {
-  return <Image alt="" aria-hidden="true" height={24} src="/assets/icons/github.svg" width={24} />;
-}
-
-type GoogleIdentity = {
-  initialize(options: { client_id: string; callback: (response: { credential: string }) => void }): void;
-  renderButton(element: HTMLElement, options: { theme: string; size: string; shape: string; text: string; width: number }): void;
-};
-
-function googleIdentity(): GoogleIdentity | undefined {
-  return (window as Window & { google?: { accounts?: { id?: GoogleIdentity } } }).google?.accounts?.id;
+  return <Image alt="" aria-hidden="true" height={20} src="/assets/icons/github.svg" width={20} />;
 }
 
 function PasswordField({ isLogin }: { isLogin: boolean }) {
@@ -65,61 +57,18 @@ export default function AuthPage({ mode }: AuthPageProps) {
   const alternatePrompt = isLogin ? "Don't have an account?" : "Already have an account?";
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
-  const [googleReady, setGoogleReady] = useState(false);
-  const [googleClientID, setGoogleClientID] = useState("");
-  const [googleConfigFailed, setGoogleConfigFailed] = useState(false);
-  const googleButton = useRef<HTMLDivElement>(null);
+  const [navigating, setNavigating] = useState(false);
 
-  useEffect(() => {
-    let active = true;
-    void fetch("/api/auth/google/config", { cache: "no-store" })
-      .then(async (response) => response.ok ? response.json() as Promise<{ client_id: string }> : null)
-      .then((config) => {
-        if (!active) return;
-        if (config?.client_id) setGoogleClientID(config.client_id);
-        else setGoogleConfigFailed(true);
-      })
-      .catch(() => { if (active) setGoogleConfigFailed(true); });
-    return () => { active = false; };
-  }, []);
-
-  useEffect(() => {
-    const google = googleIdentity();
-    if (!googleReady || !googleClientID || !google || !googleButton.current) return;
-    google.initialize({
-      client_id: googleClientID,
-      callback: (credential) => {
-        void (async () => {
-          setPending(true);
-          setError("");
-          try {
-            const response = await fetch("/api/auth/google", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ id_token: credential.credential }),
-            });
-            const payload = await response.json().catch(() => null) as { error?: string; tokens?: LocalTokenPair } | null;
-            if (!response.ok) throw new Error(payload?.error ?? "Google sign-in failed");
-            const tokens = payload?.tokens;
-            if (process.env.NODE_ENV === "development" && tokens?.access_token && tokens.refresh_token) {
-              persistLocalSession(tokens);
-            } else {
-              clearLocalSession();
-            }
-            const { destination, snapshot } = await nextRouteAfterLogin(tokens?.access_token ?? "");
-            setSnapshot(snapshot);
-            router.replace(destination);
-          } catch (cause) {
-            setError(cause instanceof Error ? cause.message : "Google sign-in failed");
-          } finally {
-            setPending(false);
-          }
-        })();
-      },
-    });
-    googleButton.current.replaceChildren();
-    google.renderButton(googleButton.current, { theme: "outline", size: "large", shape: "pill", text: "continue_with", width: 320 });
-  }, [googleReady, googleClientID, router, setSnapshot]);
+  const completeSignIn = useCallback(async (tokens?: LocalTokenPair) => {
+    clearLocalSession();
+    if (process.env.NODE_ENV === "development" && tokens?.access_token && tokens.refresh_token) {
+      persistLocalSession(tokens);
+    }
+    const { destination, snapshot } = await nextRouteAfterLogin(tokens?.access_token ?? "");
+    setSnapshot(snapshot);
+    setNavigating(true);
+    router.replace(destination);
+  }, [router, setSnapshot]);
 
   useEffect(() => {
     if (!error) return;
@@ -130,7 +79,7 @@ export default function AuthPage({ mode }: AuthPageProps) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
-    let navigating = false;
+    let redirecting = false;
     setError("");
     setPending(true);
 
@@ -157,34 +106,23 @@ export default function AuthPage({ mode }: AuthPageProps) {
       }
 
       if (isLogin) {
-        const tokens = payload?.tokens;
-
-        if (process.env.NODE_ENV === "development" && tokens?.access_token && tokens.refresh_token) {
-          persistLocalSession(tokens);
-        } else {
-          clearLocalSession();
-        }
-
-        const { destination, snapshot } = await nextRouteAfterLogin(tokens?.access_token ?? "");
-        setSnapshot(snapshot);
-        navigating = true;
-        router.replace(destination);
+        await completeSignIn(payload?.tokens);
+        redirecting = true;
         return;
       }
 
       form.reset();
-      navigating = true;
+      redirecting = true;
       router.replace(payload?.verificationRequired === false ? "/login" : "/verify");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "We couldn't complete your request. Please try again.");
     } finally {
-      if (!navigating) setPending(false);
+      if (!redirecting) setPending(false);
     }
   }
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[url('/assets/images/auth-hero-sunrise.png')] bg-cover bg-center text-[#080d17]">
-      <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" onReady={() => setGoogleReady(true)} />
       {error && (
         <div
           aria-live="polite"
@@ -228,13 +166,12 @@ export default function AuthPage({ mode }: AuthPageProps) {
             <label className="block text-base font-medium text-slate-900">Email<input autoComplete="email" className="mt-2 h-14 w-full rounded-2xl border border-white/70 bg-white/45 px-5 text-base shadow-[inset_0_1px_1px_rgba(255,255,255,0.85)] outline-none backdrop-blur-md transition focus:border-white focus:bg-white/70 focus:ring-2 focus:ring-sky-200/70" maxLength={255} name="email" required type="email" /></label>
             <PasswordField isLogin={isLogin} />
             {isLogin && <Link className="-mt-2 block text-right text-base text-slate-500 underline underline-offset-4" href="#">Forgot password?</Link>}
-            <button className="h-14 w-full rounded-full bg-gradient-to-r from-slate-950 via-slate-800 to-slate-950 text-base font-medium text-white shadow-[0_10px_24px_rgba(15,23,42,0.25),inset_0_1px_1px_rgba(255,255,255,0.22)] transition hover:scale-[1.01] hover:brightness-110 disabled:cursor-wait disabled:opacity-70" disabled={pending} type="submit">{pending ? "Please wait..." : isLogin ? "Sign in" : "Create account"} {!pending && <span className="ml-3">→</span>}</button>
+            <button className="h-14 w-full rounded-full bg-gradient-to-r from-slate-950 via-slate-800 to-slate-950 text-base font-medium text-white shadow-[0_10px_24px_rgba(15,23,42,0.25),inset_0_1px_1px_rgba(255,255,255,0.22)] transition hover:scale-[1.01] hover:brightness-110 disabled:cursor-wait disabled:opacity-70" disabled={pending || navigating} type="submit">{pending || navigating ? <PendingDots label={isLogin ? "Signing you in" : "Creating your account"} /> : isLogin ? "Sign in" : "Create account"} {!pending && <span className="ml-3">→</span>}</button>
             </form>
             <div className="my-5 flex items-center gap-5 text-center text-sm text-slate-500 before:h-px before:flex-1 before:bg-slate-300 after:h-px after:flex-1 after:bg-slate-300">OR</div>
-            <div className="space-y-3">
-              <div className="flex min-h-12 justify-center" ref={googleButton} aria-label="Continue with Google" />
-              {googleConfigFailed && <p className="text-center text-xs text-slate-500">Google sign-in is unavailable right now.</p>}
-              <button className="flex h-12 w-full items-center justify-center gap-5 rounded-full border border-white/60 bg-white/30 text-base font-medium text-slate-500 shadow-[inset_0_1px_1px_rgba(255,255,255,0.7)] backdrop-blur-md" disabled type="button"><GitHubIcon />Continue with GitHub</button>
+            <div className="mx-auto w-full max-w-[400px] space-y-3">
+              <GoogleSignInButton disabled={pending || navigating} onSuccess={completeSignIn} onError={setError} onPending={setPending} />
+              <button className="relative flex h-10 w-full items-center justify-center gap-3 rounded-full border border-[#dadce0] bg-white text-sm font-medium text-slate-500" disabled title="GitHub sign-in is coming soon" type="button"><GitHubIcon />Continue with GitHub</button>
             </div>
             </div>
           </div>
