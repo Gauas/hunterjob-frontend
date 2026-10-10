@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callGauasAuth, LoginTokens, setAuthCookies } from "../../../lib/gauas-auth";
+import { beginEmailVerification } from "../../../lib/verification-session";
 
 export async function POST(request: NextRequest) {
   const result = await callGauasAuth<LoginTokens>(request, "login");
+  if (!result.ok && result.verification) {
+    return beginEmailVerification(request, result.verification.identifier);
+  }
   if (!result.ok) return result.response;
 
   if (!result.data.access_token || !result.data.refresh_token) {

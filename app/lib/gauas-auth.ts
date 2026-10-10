@@ -24,7 +24,7 @@ type VerificationResult =
 
 type AuthResult<T> =
   | { data: T; ok: true }
-  | { ok: false; response: NextResponse };
+  | { ok: false; response: NextResponse; verification?: { identifier: string } };
 
 export function apiBaseUrl() {
   return (process.env.API_BASE_URL ?? DEFAULT_API_BASE_URL).replace(/\/+$/, "");
@@ -75,6 +75,9 @@ export async function callGauasAuth<T>(
     return { ok: false, response: errorResponse("Invalid request body", 400) };
   }
 
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { ok: false, response: errorResponse("Invalid request body", 400) };
+  }
   const body = input as Record<string, unknown>;
   const identifier = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   const password = typeof body.password === "string" ? body.password : "";
@@ -117,6 +120,13 @@ export async function callGauasAuth<T>(
     | null;
 
   if (!upstream.ok) {
+    if (action === "login" && upstream.status === 403 && payload?.code === "verification_required") {
+      return {
+        ok: false,
+        response: errorResponse("Email verification is required", 403),
+        verification: { identifier },
+      };
+    }
     if (upstream.status >= 500) {
       console.error("Gauas authentication request failed", {
         action,

@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 // Isolated test doubles only. Production Google signature verification belongs
 // to identity-service; this fixture tests the frontend's HTTP/cookie contract.
 export function createAuthUpstream() {
-  const state = { accessToken: "test-access-1", loggedOut: false };
+  const state = { accessToken: "test-access-1", loggedOut: false, verificationRequired: false, resendCount: 0, resendStatus: 202, loginError: null };
   const tokens = (refresh = "test-refresh-2") => ({ access_token: state.accessToken, refresh_token: refresh });
   const json = (res, status, body) => res.writeHead(status, { "Content-Type": "application/json" }).end(JSON.stringify(body));
   const protectedRoute = (handler) => (req, res, body) => {
@@ -14,7 +14,21 @@ export function createAuthUpstream() {
 
   function login(_req, res, body) {
     assert.equal(body.identifier, "test@example.com");
+    if (body.password !== "test-password-only") return json(res, 401, { code: "denied", error: "unauthorized" });
+    if (state.loginError) return json(res, 403, state.loginError);
+    if (state.verificationRequired) return json(res, 403, { code: "verification_required", error: "email verification is required" });
     return json(res, 200, tokens("test-refresh-1"));
+  }
+  function resendVerification(_req, res, body) {
+    assert.equal(body.identifier, "test@example.com");
+    state.resendCount++;
+    return json(res, state.resendStatus, {});
+  }
+  function verifyEmail(_req, res, body) {
+    assert.equal(body.identifier, "test@example.com");
+    if (body.code !== "012345") return json(res, 401, { error: "invalid code" });
+    state.verificationRequired = false;
+    return res.writeHead(204).end();
   }
   function refresh(_req, res, body) {
     assert.equal(body.refresh_token, "test-refresh-1");
@@ -36,6 +50,8 @@ export function createAuthUpstream() {
 
   const routes = new Map([
     ["POST /v1/auth/login", login],
+    ["POST /v1/auth/resend-verification", resendVerification],
+    ["POST /v1/auth/verify", verifyEmail],
     ["POST /v1/auth/refresh", refresh],
     ["POST /v1/auth/google", googleLogin],
     ["GET /v1/auth/google/config", (_req, res) => json(res, 200, { client_id: "public-test-client" })],

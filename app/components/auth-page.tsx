@@ -105,6 +105,15 @@ export default function AuthPage({ mode }: AuthPageProps) {
         return;
       }
 
+      if (payload?.verificationRequired) {
+        clearLocalSession();
+        form.reset();
+        redirecting = true;
+        setNavigating(true);
+        router.replace("/verify");
+        return;
+      }
+
       if (isLogin) {
         await completeSignIn(payload?.tokens);
         redirecting = true;
@@ -168,10 +177,13 @@ export default function AuthPage({ mode }: AuthPageProps) {
             {isLogin && <Link className="-mt-2 block text-right text-base text-slate-500 underline underline-offset-4" href="#">Forgot password?</Link>}
             <button className="h-14 w-full rounded-full bg-gradient-to-r from-slate-950 via-slate-800 to-slate-950 text-base font-medium text-white shadow-[0_10px_24px_rgba(15,23,42,0.25),inset_0_1px_1px_rgba(255,255,255,0.22)] transition hover:scale-[1.01] hover:brightness-110 disabled:cursor-wait disabled:opacity-70" disabled={pending || navigating} type="submit">{pending || navigating ? <PendingDots label={isLogin ? "Signing you in" : "Creating your account"} /> : isLogin ? "Sign in" : "Create account"} {!pending && <span className="ml-3">→</span>}</button>
             </form>
-            <div className="my-5 flex items-center gap-5 text-center text-sm text-slate-500 before:h-px before:flex-1 before:bg-slate-300 after:h-px after:flex-1 after:bg-slate-300">OR</div>
-            <div className="mx-auto w-full max-w-[400px] space-y-3">
+            <div className="my-6 flex items-center gap-4 text-center text-xs text-slate-500 before:h-px before:flex-1 before:bg-slate-400/25 after:h-px after:flex-1 after:bg-slate-400/25">or continue with</div>
+            <div className="mx-auto w-full max-w-[320px] space-y-3">
               <GoogleSignInButton disabled={pending || navigating} onSuccess={completeSignIn} onError={setError} onPending={setPending} />
-              <button className="relative flex h-10 w-full items-center justify-center gap-3 rounded-full border border-[#dadce0] bg-white text-sm font-medium text-slate-500" disabled title="GitHub sign-in is coming soon" type="button"><GitHubIcon />Continue with GitHub</button>
+              <div>
+                <button aria-describedby="github-sign-in-status" className="flex h-10 w-full cursor-not-allowed items-center justify-center gap-2 rounded-full border border-slate-400/25 bg-white/35 text-[14px] font-medium tracking-[0.25px] text-slate-500 [&_img]:opacity-50" disabled type="button"><GitHubIcon />Continue with GitHub</button>
+                <p className="mt-2 text-center text-[11px] leading-4 text-slate-500" id="github-sign-in-status">GitHub sign-in coming soon</p>
+              </div>
             </div>
             </div>
           </div>

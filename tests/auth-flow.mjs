@@ -76,7 +76,43 @@ try {
   assert.ok(state.loggedOut);
   keepCookies(logout);
   assert.equal(cookieJar.get("gauas_access_token"), "");
-  console.log("PASS: login, profile/dashboard, refresh, Google ID-token exchange/cookies/rejections and logout");
+  const loginWith = (password = "test-password-only") => fetch(`${base}/api/auth/login`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: " Test@Example.com ", password }),
+  });
+  state.verificationRequired = true;
+  assert.equal((await loginWith("wrong-password")).status, 401);
+  assert.equal(state.resendCount, 0, "wrong password must not trigger OTP");
+  state.loginError = { code: "forbidden", error: "account disabled" };
+  assert.equal((await loginWith()).status, 403);
+  assert.equal(state.resendCount, 0, "generic forbidden must not trigger OTP");
+  state.loginError = null;
+  state.resendStatus = 429;
+  const limited = await loginWith();
+  assert.equal(limited.status, 429);
+  assert.equal(limited.headers.getSetCookie().length, 0);
+  state.resendStatus = 503;
+  assert.equal((await loginWith()).status, 502);
+  state.resendStatus = 202;
+  const verification = await loginWith();
+  assert.equal(verification.status, 200);
+  assert.deepEqual(await verification.json(), { ok: true, verificationRequired: true });
+  assert.equal(state.resendCount, 3);
+  assert.ok(verification.headers.getSetCookie().some((value) => value.startsWith("gauas_verification_email=") && /HttpOnly/i.test(value) && /Secure/i.test(value)));
+  keepCookies(verification);
+  assert.equal(cookieJar.get("gauas_access_token"), "");
+  assert.equal((await fetch(`${base}/verify`, { headers: { Cookie: cookies() } })).status, 200);
+  const verified = await fetch(`${base}/api/auth/verify-email`, {
+    method: "POST", headers: { "Content-Type": "application/json", Cookie: cookies() },
+    body: JSON.stringify({ code: "012345" }),
+  });
+  assert.ok(verified.ok);
+  assert.equal(state.verificationRequired, false);
+  const verifiedLogin = await loginWith();
+  assert.equal(verifiedLogin.status, 200);
+  assert.deepEqual(await verifiedLogin.json(), { ok: true });
+  assert.equal(state.resendCount, 3, "verified login must not resend OTP");
+  console.log("PASS: login, Google, refresh/logout, unverified login → resend OTP → verify → login; wrong-password/403/429/503 guards");
 } finally {
   if (app.exitCode === null) {
     const exited = once(app, "exit");

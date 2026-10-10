@@ -10,12 +10,10 @@ import LogoutButton from "./components/logout-button";
 import JobCompanyMark from "./components/job-company-mark";
 import BrandLogo from "./components/brand-logo";
 import PagePending from "./components/page-pending";
+import ChannelLogo, { deliveryChannels } from "./components/channel-logo";
 import { useEntrySession } from "./components/entry-session";
 import { AccountProfileError, getAccountProfile, hasCompletedProfile } from "./lib/entry-route";
 
-const channelIcons: Record<string, string> = { telegram: "➤", discord: "◕", zalo: "Z", messenger: "ϟ", whatsapp: "◉", email: "✉" };
-const channels = ["telegram", "discord", "zalo", "messenger", "whatsapp", "email"];
-function label(value: string) { return value.charAt(0).toUpperCase() + value.slice(1); }
 function SmallIcon({ kind }: { kind: string }) {
   const paths: Record<string, React.ReactNode> = {
     role: <><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 12h18"/></>,
@@ -171,13 +169,14 @@ export default function Home() {
         <section className="agent-card p-7 sm:p-9">
           <h2 className="text-2xl font-semibold tracking-tight">Chat delivery</h2>
           <p className="mt-2 text-[#777]">Get new jobs delivered to your favorite apps</p>
-          <div className="mt-7">{channels.map((provider) => {
+          <div className="mt-7">{deliveryChannels.map((channel) => {
+            const { provider, label } = channel;
             const connection = visibleDashboard.connections.find((item) => item.provider === provider) ?? { provider, available: false, connected: false, enabled: false };
             const status = connection.connected ? connection.enabled ? "Connected · On" : "Connected · Paused" : provider === "telegram" && telegramLink ? "Waiting for Start" : connection.available ? "Not connected" : "Coming soon";
             return <div className="border-t border-[#eee] first:border-t-0" key={provider}>
               <div className="channel-row flex items-center gap-5 py-5">
-                <span className="channel-icon">{channelIcons[provider]}</span>
-                <div className="min-w-0 flex-1"><p className="font-semibold">{label(provider)}</p><p className="mt-1 text-sm text-[#858585]">● &nbsp;{status}</p></div>
+                <ChannelLogo channel={channel} />
+                <div className="min-w-0 flex-1"><p className="font-semibold">{label}</p><p className="mt-1 text-sm text-[#858585]">● &nbsp;{status}</p></div>
                 <button aria-label={`${connection.connected ? connection.enabled ? "Pause" : "Enable" : "Connect"} ${provider}`} aria-pressed={connection.connected ? connection.enabled : undefined} className={connection.connected ? `channel-toggle ${connection.enabled ? "on" : ""}` : "rounded-2xl border border-[#eee] px-5 py-3 text-sm disabled:cursor-not-allowed disabled:text-[#aaa]"} disabled={!connection.available || busy === provider || (provider === "telegram" && Boolean(telegramLink))} onClick={() => void act(connection)} type="button">{connection.connected ? <span/> : provider === "telegram" && telegramLink ? "Pending" : "Connect"}</button>
               </div>
               {provider === "telegram" && connection.connected && <button className="mb-3 ml-[76px] text-xs text-[#777] underline underline-offset-4 hover:text-[#171717]" disabled={busy === "telegram"} onClick={() => void disconnectTelegram()} type="button">Disconnect Telegram</button>}

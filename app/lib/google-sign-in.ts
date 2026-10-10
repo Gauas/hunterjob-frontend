@@ -3,7 +3,7 @@ import type { LocalTokenPair } from "./local-auth";
 export type GoogleCredential = { credential: string };
 export type GoogleIdentity = {
   initialize(options: { client_id: string; ux_mode: "popup"; callback: (response: GoogleCredential) => void }): void;
-  renderButton(element: HTMLElement, options: { theme: string; size: string; shape: string; text: string; width: number; locale: string }): void;
+  renderButton(element: HTMLElement, options: { theme: string; size: string; shape: string; text: string; width: number; locale: string; logo_alignment: "center" | "left" }): void;
 };
 
 export function googleIdentity(): GoogleIdentity | undefined {
@@ -39,7 +39,7 @@ export function mountGoogleButton(google: GoogleIdentity, element: HTMLElement):
     if (width <= 0 || width === lastWidth) return;
     lastWidth = width;
     element.replaceChildren();
-    google.renderButton(element, { theme: "outline", size: "large", shape: "pill", text: "continue_with", width, locale: "en" });
+    google.renderButton(element, { theme: "outline", size: "large", shape: "pill", text: "continue_with", width, locale: "en", logo_alignment: "center" });
   };
   render();
   const observer = new ResizeObserver(render);
