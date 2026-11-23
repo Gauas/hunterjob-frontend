@@ -36,8 +36,17 @@ function JobRow({ match }: { match: Match }) {
   </a>;
 }
 
-function telegramLinkExpiry() {
-  return Date.now() + 10 * 60 * 1000;
+type PendingLink = { provider: string; url: string; command?: string; expiresAt: number };
+
+async function startConnection(provider: string): Promise<PendingLink> {
+  const result = await agentRequest<{ connection_url: string; command?: string; expires_in?: number }>(
+    `connections/${provider}/connect`, { method: "POST" },
+  );
+  if (!result.connection_url) throw new Error("Could not open the connection link. Please try again.");
+  return {
+    provider, url: result.connection_url, command: result.command,
+    expiresAt: Date.now() + (result.expires_in ?? 600) * 1000,
+  };
 }
 
 export default function Home() {
@@ -47,17 +56,17 @@ export default function Home() {
   const [name, setName] = useState("Profile");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
-  const [telegramLink, setTelegramLink] = useState<{ url: string; expiresAt: number } | null>(null);
+  const [pendingLink, setPendingLink] = useState<PendingLink | null>(null);
   const applyConnections = useCallback((items: Connection[]) => {
     setDashboard((current) => {
       const previous = current ?? snapshot?.dashboard;
       return previous ? { ...previous, connections: items } : null;
     });
-    if (items.some((item) => item.provider === "telegram" && item.connected)) {
-      setTelegramLink(null);
+    if (pendingLink && items.some((item) => item.provider === pendingLink.provider && item.connected)) {
+      setPendingLink(null);
       setError("");
     }
-  }, [snapshot]);
+  }, [snapshot, pendingLink]);
   useEffect(() => {
     let active = true;
     async function load() {
@@ -91,40 +100,33 @@ export default function Home() {
   }, [applyConnections]);
 
   useEffect(() => {
-    if (!telegramLink) return;
+    if (!pendingLink) return;
     let active = true;
     let timer = 0;
     const check = async () => {
-      if (Date.now() >= telegramLink.expiresAt) {
-        setTelegramLink(null);
-        setError("Telegram connection link expired. Select Connect to try again.");
+      if (Date.now() >= pendingLink.expiresAt) {
+        setPendingLink(null);
+        setError("Connection link expired. Select Connect to try again.");
         return;
       }
       try {
         const result = await agentRequest<{ items: Connection[] }>("connections");
         if (!active) return;
         applyConnections(result.items);
-        if (result.items.some((item) => item.provider === "telegram" && item.connected)) return;
+        if (result.items.some((item) => item.provider === pendingLink.provider && item.connected)) return;
       } catch { /* Keep waiting until the link expires or the connection succeeds. */ }
       if (active) timer = window.setTimeout(check, 3000);
     };
     timer = window.setTimeout(check, 3000);
     return () => { active = false; window.clearTimeout(timer); };
-  }, [telegramLink, applyConnections]);
+  }, [pendingLink, applyConnections]);
 
   async function act(connection: Connection) {
     if (!connection.available) return;
     setBusy(connection.provider); setError("");
     try {
       if (!connection.connected) {
-        const result = await agentRequest<{ connection_url: string }>(`connections/${connection.provider}/connect`, { method: "POST" });
-        if (connection.provider === "telegram" && result.connection_url) {
-          setTelegramLink({ url: result.connection_url, expiresAt: telegramLinkExpiry() });
-        } else if (result.connection_url) {
-          window.location.assign(result.connection_url);
-        } else {
-          throw new Error("Could not open the connection link. Please try again.");
-        }
+        setPendingLink(await startConnection(connection.provider));
       } else {
         const enabled = !connection.enabled;
         await agentRequest(`connections/${connection.provider}`, { method: "PATCH", body: JSON.stringify({ enabled }) });
@@ -143,17 +145,17 @@ export default function Home() {
     } catch { /* Keep the last known state. */ }
   }
 
-  async function disconnectTelegram() {
-    setBusy("telegram"); setError("");
+  async function disconnect(provider: string) {
+    setBusy(provider); setError("");
     try {
-      await agentRequest("connections/telegram/disconnect", { method: "POST" });
-      setTelegramLink(null);
+      await agentRequest(`connections/${provider}/disconnect`, { method: "POST" });
+      setPendingLink(null);
       setDashboard((current) => {
         const previous = current ?? snapshot?.dashboard;
-        return previous ? { ...previous, connections: previous.connections.map((item) => item.provider === "telegram" ? { ...item, connected: false, enabled: false } : item) } : null;
+        return previous ? { ...previous, connections: previous.connections.map((item) => item.provider === provider ? { ...item, connected: false, enabled: false } : item) } : null;
       });
       await refreshConnections();
-    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not disconnect Telegram."); }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not disconnect this channel."); }
     finally { setBusy(""); }
   }
 
@@ -162,6 +164,7 @@ export default function Home() {
   const visibleDashboard = dashboard ?? snapshot!.dashboard;
   const visibleName = name === "Profile" ? snapshot?.firstName ?? name : name;
   const pref = visibleDashboard.search_preference!;
+  const pendingLabel = deliveryChannels.find((channel) => channel.provider === pendingLink?.provider)?.label;
   return <main className="agent-shell min-h-screen px-4 py-7 text-[#171717] sm:px-7 sm:py-12">
     <div className="mx-auto max-w-[1390px]">
       <header className="agent-card flex min-h-[88px] items-center justify-between px-6 sm:px-11"><Link href="/" aria-label="HunterJob home"><Image alt="HunterJob" src="/assets/branding/hunterjob-wordmark.png" width={1359} height={264} className="h-auto w-[150px] object-contain" priority /></Link><details className="relative"><summary className="flex cursor-pointer list-none items-center gap-3 rounded-full border border-[#efefef] px-3 py-2 text-sm"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#171717] font-semibold text-white">{visibleName.slice(0,1).toUpperCase()}</span>{visibleName}<span>⌄</span></summary><div className="absolute right-0 z-20 mt-2 w-40 rounded-2xl border bg-white p-2 shadow-xl"><Link className="block rounded-lg px-4 py-3 text-sm font-medium hover:bg-slate-50" href="/profile">Profile</Link><div className="mx-3 border-t border-slate-100"/><LogoutButton /></div></details></header>
@@ -176,21 +179,28 @@ export default function Home() {
           <div className="mt-7">{deliveryChannels.map((channel) => {
             const { provider, label } = channel;
             const connection = visibleDashboard.connections.find((item) => item.provider === provider) ?? { provider, available: false, connected: false, enabled: false };
-            const status = connection.connected ? connection.enabled ? "Connected · On" : "Connected · Paused" : provider === "telegram" && telegramLink ? "Waiting for Start" : connection.available ? "Not connected" : "Coming soon";
+            const waiting = pendingLink?.provider === provider;
+            const scheduled = provider === "telegram";
+            const status = connection.connected
+              ? scheduled ? connection.enabled ? "Connected · On" : "Connected · Paused" : "Connected · On demand"
+              : waiting ? "Waiting for confirmation" : connection.available ? "Not connected" : "Coming soon";
             return <div className="border-t border-[#eee] first:border-t-0" key={provider}>
               <div className="channel-row flex items-center gap-5 py-5">
                 <ChannelLogo channel={channel} />
                 <div className="min-w-0 flex-1"><p className="font-semibold">{label}</p><p className="mt-1 text-sm text-[#858585]">● &nbsp;{status}</p></div>
-                <button aria-label={`${connection.connected ? connection.enabled ? "Pause" : "Enable" : "Connect"} ${provider}`} aria-pressed={connection.connected ? connection.enabled : undefined} className={connection.connected ? `channel-toggle ${connection.enabled ? "on" : ""}` : "rounded-2xl border border-[#eee] px-5 py-3 text-sm disabled:cursor-not-allowed disabled:text-[#aaa]"} disabled={!connection.available || busy === provider || (provider === "telegram" && Boolean(telegramLink))} onClick={() => void act(connection)} type="button">{connection.connected ? <span/> : provider === "telegram" && telegramLink ? "Pending" : "Connect"}</button>
+                {(!connection.connected || scheduled) && <button aria-label={`${connection.connected ? connection.enabled ? "Pause" : "Enable" : "Connect"} ${provider}`} aria-pressed={connection.connected ? connection.enabled : undefined} className={connection.connected ? `channel-toggle ${connection.enabled ? "on" : ""}` : "rounded-2xl border border-[#eee] px-5 py-3 text-sm disabled:cursor-not-allowed disabled:text-[#aaa]"} disabled={!connection.available || busy === provider || Boolean(pendingLink)} onClick={() => void act(connection)} type="button">{connection.connected ? <span/> : waiting ? "Pending" : "Connect"}</button>}
               </div>
-              {provider === "telegram" && connection.connected && <button className="mb-3 ml-[76px] text-xs text-[#777] underline underline-offset-4 hover:text-[#171717]" disabled={busy === "telegram"} onClick={() => void disconnectTelegram()} type="button">Disconnect Telegram</button>}
+              {connection.connected && <button className="mb-3 ml-[76px] text-xs text-[#777] underline underline-offset-4 hover:text-[#171717]" disabled={busy === provider} onClick={() => void disconnect(provider)} type="button">Disconnect {label}</button>}
             </div>;
           })}</div>
-          {telegramLink && <div className="mt-5 rounded-2xl border border-[#ededed] bg-[#fafafa] p-5">
-            <p className="font-semibold">Finish connecting Telegram</p>
-            <p className="mt-2 text-sm leading-6 text-[#777]">Open the bot in a private chat and tap Start. This page will update when your account is connected.</p>
-            <a className="agent-dark-button mt-4 inline-flex items-center justify-center px-6" href={telegramLink.url} rel="noopener noreferrer" target="_blank">Open Telegram ↗</a>
-            <div className="mt-4 flex items-center justify-between gap-3 text-xs text-[#999]"><span>Link expires in 10 minutes.</span><button className="underline underline-offset-4" onClick={() => setTelegramLink(null)} type="button">Cancel</button></div>
+          {pendingLink && <div className="mt-5 rounded-2xl border border-[#ededed] bg-[#fafafa] p-5">
+            <p className="font-semibold">Finish connecting {pendingLabel}</p>
+            {pendingLink.command ? <>
+              <p className="mt-2 text-sm leading-6 text-[#777]">Open the chat and send this command to link your account.</p>
+              <input aria-label="Connection command" className="mt-2 w-full rounded-lg border bg-white p-2 font-mono text-xs" readOnly value={pendingLink.command} onFocus={(event) => event.currentTarget.select()} />
+            </> : <p className="mt-2 text-sm leading-6 text-[#777]">Open the bot in a private chat and tap Start.</p>}
+            <a className="agent-dark-button mt-4 inline-flex items-center justify-center px-6" href={pendingLink.url} rel="noopener noreferrer" target="_blank">Open {pendingLabel} ↗</a>
+            <div className="mt-4 flex items-center justify-between gap-3 text-xs text-[#999]"><span>Link expires in a few minutes.</span><button className="underline underline-offset-4" onClick={() => setPendingLink(null)} type="button">Cancel</button></div>
           </div>}
           {error && <p className="mt-4 text-sm text-red-700">{error}</p>}
         </section>
