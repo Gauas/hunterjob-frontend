@@ -36,6 +36,10 @@ function JobRow({ match }: { match: Match }) {
   </a>;
 }
 
+function telegramLinkExpiry() {
+  return Date.now() + 10 * 60 * 1000;
+}
+
 export default function Home() {
   const router = useRouter();
   const { snapshot } = useEntrySession();
@@ -115,7 +119,7 @@ export default function Home() {
       if (!connection.connected) {
         const result = await agentRequest<{ connection_url: string }>(`connections/${connection.provider}/connect`, { method: "POST" });
         if (connection.provider === "telegram" && result.connection_url) {
-          setTelegramLink({ url: result.connection_url, expiresAt: Date.now() + 10 * 60 * 1000 });
+          setTelegramLink({ url: result.connection_url, expiresAt: telegramLinkExpiry() });
         } else if (result.connection_url) {
           window.location.assign(result.connection_url);
         } else {
