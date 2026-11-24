@@ -14,7 +14,8 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
 
   const targetPath = `/v1/hunterjob/${path.map(encodeURIComponent).join("/")}${request.nextUrl.search}`;
   try {
-    const upstream = await fetch(`${apiBaseUrl()}${targetPath}`, {
+    const api = process.env.HUNTERJOB_API_BASE_URL?.trim().replace(/\/+$/, "") || apiBaseUrl();
+    const upstream = await fetch(`${api}${targetPath}`, {
       method: request.method,
       headers: {
         "Content-Type": "application/json",
@@ -22,7 +23,7 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
       },
       body: request.method === "GET" ? undefined : await request.text(),
       cache: "no-store",
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.any([request.signal, AbortSignal.timeout(10000)]),
     });
     return new NextResponse(await upstream.text(), {
       status: upstream.status,
