@@ -20,16 +20,6 @@ function normalizeExperience(value: string) {
   return value.trim().toLowerCase().replace(/[–—]/g, "-").replace(/\s*(?:years?|yrs?)\s*$/, "").replace(/\s+/g, "");
 }
 
-function TypeQuestion({ text }: { text: string }) {
-  const [count, setCount] = useState(0);
-  useEffect(() => {
-    setCount(0);
-    const timer = window.setInterval(() => setCount((current) => Math.min(current + 1, text.length)), 24);
-    return () => window.clearInterval(timer);
-  }, [text]);
-  return <span>{text.slice(0, count)}{count < text.length && <span className="ask-cursor">|</span>}</span>;
-}
-
 export default function AskPage() {
   const router = useRouter();
   const [step, setStep] = useState(0);
@@ -91,7 +81,7 @@ export default function AskPage() {
     <section className="ask-card w-full max-w-[1070px] rounded-[30px] px-7 py-11 sm:px-14 sm:py-16">
       <div className="space-y-10 sm:space-y-14">
         {questions.slice(0, step + 1).map((question, index) => <div className="ask-row grid items-center gap-4 sm:grid-cols-[1fr_auto] sm:gap-8" key={question.key}>
-          <p className="text-xl font-medium tracking-[-0.025em] sm:text-[27px]">{index === step ? <TypeQuestion text={question.prompt} /> : question.prompt}</p>
+          <p className="text-xl font-medium tracking-[-0.025em] sm:text-[27px]">{question.prompt}</p>
           {index < step && <span className="ask-answer justify-self-start rounded-full bg-[#1b1d1e] px-7 py-3 text-base text-white sm:justify-self-end sm:px-9 sm:py-4 sm:text-xl">{answers[question.key]}</span>}
         </div>)}
       </div>

@@ -26,12 +26,15 @@
 .channel-toggle.on span{transform:translateX(26px)}
 .ask-row{animation:ask-appear .5s ease both}
 .ask-answer{animation:ask-appear .45s ease both}
-.ask-cursor{animation:ask-blink .7s step-end infinite}
 @keyframes ask-appear{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-@keyframes ask-blink{50%{opacity:0}}
-.page-enter{animation:page-enter .22s ease-out both}
+.loading-placeholder{animation:loading-appear .16s .12s both}
+@keyframes loading-appear{from{opacity:0}to{opacity:1}}
 .loading-skeleton{background:linear-gradient(100deg,#f0f1f3 25%,#fafafa 45%,#f0f1f3 65%);background-size:220% 100%;animation:skeleton-sweep 1.6s ease-in-out infinite}
 .pending-dot{animation:pending-dot 1.1s ease-in-out infinite}
-@keyframes page-enter{from{opacity:0}to{opacity:1}}
 @keyframes skeleton-sweep{from{background-position:180% 0}to{background-position:-40% 0}}
 @keyframes pending-dot{0%,70%,100%{opacity:.4;transform:translateY(0)}35%{opacity:1;transform:translateY(-3px)}}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-placeholder,.loading-skeleton,.pending-dot,.ask-row,.ask-answer{animation:none}
+  .channel-toggle,.channel-toggle span{transition:none}
+}
